@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[169]:
+# In[188]:
 
 
 #taken the code to fetch commits from below resources:
 #https://gist.github.com/simonw/091b765a071d1558464371042db3b959
-import subprocess
-import re
 
 
+# get_commits function returns all the commit ids and the date of the commits of given directory
 
-# In[170]:
+
+# In[189]:
 
 
 def get_commits(lines):
@@ -54,39 +54,45 @@ def get_commits(lines):
     for commit in commits[:len(commits)]:
         commit_summary['hash'] = commit['hash']
         commit_summary['date'] = commit['date']
-#         print (commit_summary)
-        
-#         print(commit['date'])        
         commit_output.append(commit_summary.copy())
     commit_output.sort(key = lambda c: c['date'], reverse = True)
-#     print(commit_summary)
     
     return commit_output
 
 
-# In[186]:
+# In[191]:
 
+
+#finding the total number of commit in the project
 
 lines = subprocess.check_output(
     ['git', 'log'], stderr=subprocess.STDOUT
 ).decode().split("\n")
 leading_4_spaces = re.compile('^    ')
 total_commit = get_commits(lines)
-print(len(total_commit))
+print("total commits in this project: " + str(len(total_commit)))
 
 
-# In[187]:
+# In[192]:
 
 
 import git
 import os
 g = git.Git('.')
 # print(os.getcwd())
-# os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests")
+os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests")
 # print(os.getcwd())
 lines_tests = g.log('.').splitlines()
 test_script_commit = get_commits(lines_tests)
-print(len(test_script_commit))
+print("total commits in the test directory: " + str(len(test_script_commit)))
+
+
+# In[202]:
+
+
+# Percentage of test directory change:
+
+print("test directory change frequency is " + str(len(test_script_commit)/len(total_commit)*100) + "%")
 
 
 # In[ ]:
