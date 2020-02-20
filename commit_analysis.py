@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[188]:
+# In[152]:
 
 
 #taken the code to fetch commits from below resources:
@@ -9,9 +9,11 @@
 
 
 # get_commits function returns all the commit ids and the date of the commits of given directory
+import subprocess 
+import re
 
 
-# In[189]:
+# In[153]:
 
 
 def get_commits(lines):
@@ -60,20 +62,20 @@ def get_commits(lines):
     return commit_output
 
 
-# In[191]:
+# In[154]:
 
 
 #finding the total number of commit in the project
-
+os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
 lines = subprocess.check_output(
     ['git', 'log'], stderr=subprocess.STDOUT
 ).decode().split("\n")
 leading_4_spaces = re.compile('^    ')
-total_commit = get_commits(lines)
-print("total commits in this project: " + str(len(total_commit)))
+total_commits = get_commits(lines)
+print("total commits in this project: " + str(len(total_commits)))
 
 
-# In[192]:
+# In[155]:
 
 
 import git
@@ -83,20 +85,33 @@ g = git.Git('.')
 os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests")
 # print(os.getcwd())
 lines_tests = g.log('.').splitlines()
-test_script_commit = get_commits(lines_tests)
-print("total commits in the test directory: " + str(len(test_script_commit)))
+test_script_commits = get_commits(lines_tests)
+
+print("total commits in the test directory: " + str(len(test_script_commits)))
 
 
-# In[202]:
+# In[156]:
 
 
 # Percentage of test directory change:
 
-print("test directory change frequency is " + str(len(test_script_commit)/len(total_commit)*100) + "%")
+print("test directory change frequency is " + str(len(test_script_commits)/len(total_commits)*100) + "%")
 
 
-# In[ ]:
+# In[148]:
 
 
+test_commit_len = len(test_script_commits)
+os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
+changed_files = {}
 
+for m in range(2):
+    x = test_script_commits[m]['hash']+".."+test_script_commits[m+1]['hash']
+    differs = g.diff(x, name_only=True).split("\n")
+    differs_list = []
+    for differ in differs:
+        differs_list.append(differ)
+    changed_files[test_script_commits[m]['hash']] = differs_list
+
+print(changed_files)
 
