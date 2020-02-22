@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[277]:
+# In[314]:
 
 
 #taken the code to fetch commits from below resources:
@@ -16,38 +16,22 @@ import io
 from unidiff import PatchSet
 
 
-# In[281]:
+# In[315]:
 
 
 #Establishing ElasticSearch Connection with Bonsai
 import os, base64, re, logging
 from elasticsearch import Elasticsearch
 
-# Log transport details (optional):
-logging.basicConfig(level=logging.INFO)
 
-# Parse the auth and host from env:
-bonsai = 'https://5rzizo69df:6ok5himd91@iac-test-std-2716434087.ap-southeast-2.bonsaisearch.net'
-auth = re.search('https\:\/\/(.*)\@', bonsai).group(1).split(':')
-host = bonsai.replace('https://%s:%s@' % (auth[0], auth[1]), '')
-port = 443
+es=Elasticsearch([{'host':'ec2-3-85-13-61.compute-1.amazonaws.com','port':9200}])
 
-# Connect to cluster over SSL using auth for best security:
-es_header = [{
- 'host': host,
- 'port': port,
- 'use_ssl': True,
- 'http_auth': (auth[0],auth[1])
-}]
 
-# Instantiate the new Elasticsearch connection:
-es = Elasticsearch(es_header)
-
-# Verify that Python can talk to Bonsai (optional):
+# Verify that Python can talk to ES (optional):
 es.ping()
 
 
-# In[282]:
+# In[316]:
 
 
 #Parsing git commits of a repo
@@ -97,7 +81,7 @@ def get_commits(lines):
     return commit_output
 
 
-# In[283]:
+# In[317]:
 
 
 #finding the total number of commit in the project
@@ -110,7 +94,7 @@ total_commits = get_commits(lines)
 print("total commits in this project: " + str(len(total_commits)))
 
 
-# In[284]:
+# In[318]:
 
 
 import git
@@ -127,7 +111,7 @@ test_script_commits = get_commits(lines_tests)
 print("total commits in the test directory: " + str(len(test_script_commits)))
 
 
-# In[285]:
+# In[319]:
 
 
 # Percentage of test directory change:
@@ -135,7 +119,7 @@ print("total commits in the test directory: " + str(len(test_script_commits)))
 print("test directory change frequency is " + str(len(test_script_commits)/len(total_commits)*100) + "%")
 
 
-# In[286]:
+# In[320]:
 
 
 # finding the number of lines added & removed
@@ -164,8 +148,11 @@ def tracking_files (commit_sha1):
                     lines_added.append(str(line))
                 if line.is_removed and line.value.strip() != '':
                     lines_removed.append(str(line))
-    total_change['added'] = lines_added
-    total_change['removed'] = lines_removed
+        total_change['added'] = lines_added
+        total_change['removed'] = lines_removed
+        total_change['filename'] = file_path
+        total_change['commit_id'] = commit_sha1
+        res = es.index(index='iac_file_change',doc_type='filelog', body=total_change)
     
     return total_change
                
@@ -173,14 +160,14 @@ def tracking_files (commit_sha1):
 # print(tracking_files('c2d49cbff06f348acde42ad583a1401767e52806'))
 
 
-# In[288]:
+# In[313]:
 
 
 # Sending the changelog for each commit in the test folder to ES
 test_commit_len = len(test_script_commits)
 os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
 
-for m in range(2):
+for m in range(500,615):
     x = test_script_commits[m]['hash']
     file_changes = tracking_files(x)
     res = es.index(index='iac_file_change',doc_type='filelog',id=x,body=total_change)
