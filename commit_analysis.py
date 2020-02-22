@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[152]:
+# In[277]:
 
 
 #taken the code to fetch commits from below resources:
@@ -11,11 +11,46 @@
 # get_commits function returns all the commit ids and the date of the commits of given directory
 import subprocess 
 import re
+import elasticsearch
+import io
+from unidiff import PatchSet
 
 
-# In[153]:
+# In[281]:
 
 
+#Establishing ElasticSearch Connection with Bonsai
+import os, base64, re, logging
+from elasticsearch import Elasticsearch
+
+# Log transport details (optional):
+logging.basicConfig(level=logging.INFO)
+
+# Parse the auth and host from env:
+bonsai = 'https://5rzizo69df:6ok5himd91@iac-test-std-2716434087.ap-southeast-2.bonsaisearch.net'
+auth = re.search('https\:\/\/(.*)\@', bonsai).group(1).split(':')
+host = bonsai.replace('https://%s:%s@' % (auth[0], auth[1]), '')
+port = 443
+
+# Connect to cluster over SSL using auth for best security:
+es_header = [{
+ 'host': host,
+ 'port': port,
+ 'use_ssl': True,
+ 'http_auth': (auth[0],auth[1])
+}]
+
+# Instantiate the new Elasticsearch connection:
+es = Elasticsearch(es_header)
+
+# Verify that Python can talk to Bonsai (optional):
+es.ping()
+
+
+# In[282]:
+
+
+#Parsing git commits of a repo
 def get_commits(lines):
     commits = []
     current_commit = {}
@@ -62,7 +97,7 @@ def get_commits(lines):
     return commit_output
 
 
-# In[154]:
+# In[283]:
 
 
 #finding the total number of commit in the project
@@ -75,14 +110,16 @@ total_commits = get_commits(lines)
 print("total commits in this project: " + str(len(total_commits)))
 
 
-# In[155]:
+# In[284]:
 
 
 import git
 import os
+os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests")
+
 g = git.Git('.')
 # print(os.getcwd())
-os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests")
+
 # print(os.getcwd())
 lines_tests = g.log('.').splitlines()
 test_script_commits = get_commits(lines_tests)
@@ -90,7 +127,7 @@ test_script_commits = get_commits(lines_tests)
 print("total commits in the test directory: " + str(len(test_script_commits)))
 
 
-# In[156]:
+# In[285]:
 
 
 # Percentage of test directory change:
@@ -98,20 +135,69 @@ print("total commits in the test directory: " + str(len(test_script_commits)))
 print("test directory change frequency is " + str(len(test_script_commits)/len(total_commits)*100) + "%")
 
 
-# In[148]:
+# In[286]:
 
 
+# finding the number of lines added & removed
+# https://stackoverflow.com/questions/39423122/python-git-diff-parser
+
+
+def tracking_files (commit_sha1):
+    os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
+    repo_directory_address = "."
+    repository = git.Repo(repo_directory_address)
+    ommit = repository.commit(commit_sha1)
+    uni_diff_text = repository.git.diff(commit_sha1+ '~1', commit_sha1,
+                                    ignore_blank_lines=True, 
+                                    ignore_space_at_eol=True)
+    patch_set = PatchSet(io.StringIO(uni_diff_text))
+    lines_added = []
+    lines_removed = []
+    total_change={}
+    for patched_file in patch_set:
+        file_path = patched_file.path  # file name
+        print('file name :' + file_path)
+#         printing the added lines   
+        for hunk in patched_file:
+            for line in hunk:
+                if line.is_added and line.value.strip() != '':
+                    lines_added.append(str(line))
+                if line.is_removed and line.value.strip() != '':
+                    lines_removed.append(str(line))
+    total_change['added'] = lines_added
+    total_change['removed'] = lines_removed
+    
+    return total_change
+               
+
+# print(tracking_files('c2d49cbff06f348acde42ad583a1401767e52806'))
+
+
+# In[288]:
+
+
+# Sending the changelog for each commit in the test folder to ES
 test_commit_len = len(test_script_commits)
 os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
-changed_files = {}
 
 for m in range(2):
-    x = test_script_commits[m]['hash']+".."+test_script_commits[m+1]['hash']
-    differs = g.diff(x, name_only=True).split("\n")
-    differs_list = []
-    for differ in differs:
-        differs_list.append(differ)
-    changed_files[test_script_commits[m]['hash']] = differs_list
+    x = test_script_commits[m]['hash']
+    file_changes = tracking_files(x)
+    res = es.index(index='iac_file_change',doc_type='filelog',id=x,body=total_change)
+#     print(file_changes)
+#     differs_list = []
+#     for differ in differs:
+#         if differ not in differs_list:
+#             if not differ.endswith(('.png','svg','wmf', 'ignore')):
+              
+#                 differs_list.append(differ)
+#                 print(differ)
+#                 changes = g.diff(differ, name_only=True)
+#                 print (changes)
 
-print(changed_files)
+
+# In[ ]:
+
+
+
 
