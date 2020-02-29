@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[314]:
+# In[127]:
 
 
 #taken the code to fetch commits from below resources:
@@ -16,7 +16,7 @@ import io
 from unidiff import PatchSet
 
 
-# In[315]:
+# In[128]:
 
 
 #Establishing ElasticSearch Connection with Bonsai
@@ -31,7 +31,7 @@ es=Elasticsearch([{'host':'ec2-3-85-13-61.compute-1.amazonaws.com','port':9200}]
 es.ping()
 
 
-# In[316]:
+# In[129]:
 
 
 #Parsing git commits of a repo
@@ -81,7 +81,7 @@ def get_commits(lines):
     return commit_output
 
 
-# In[317]:
+# In[130]:
 
 
 #finding the total number of commit in the project
@@ -94,7 +94,7 @@ total_commits = get_commits(lines)
 print("total commits in this project: " + str(len(total_commits)))
 
 
-# In[318]:
+# In[131]:
 
 
 import git
@@ -111,7 +111,7 @@ test_script_commits = get_commits(lines_tests)
 print("total commits in the test directory: " + str(len(test_script_commits)))
 
 
-# In[319]:
+# In[132]:
 
 
 # Percentage of test directory change:
@@ -119,7 +119,47 @@ print("total commits in the test directory: " + str(len(test_script_commits)))
 print("test directory change frequency is " + str(len(test_script_commits)/len(total_commits)*100) + "%")
 
 
-# In[320]:
+# In[133]:
+
+
+test_line1 = "ceph_mons: \"{{ groups[mon_group_name]\n"
+test_line2 = "%%^82773a"
+
+def searchForMatch(test_line):
+    searchObj = re.search(r'(\S+): (([A-Za-z]|[0-9]|_|"|{|\[| |\]|}|:|\/|.|\=)+$)', test_line)
+    if searchObj:
+        return True
+    else:
+        return False
+
+
+# In[137]:
+
+
+#this function will:
+#return 0 is the line is a comment
+#return 1 if the file is not an yaml or python file
+#retunr 2 if the line does not contain the pattern
+#return 3 if the line contains a property name
+def check_for_property_change(s, filename):
+    if s.startswith('#'):
+        return 0;
+    else:
+#         print("Non comment")
+        if (filename.endswith(".yml")) or (filename.endswith(".yaml")) or (filename.endswith(".py")) or (filename.endswith(".j2"))  :
+            if searchForMatch(s):
+                return 3
+            else:
+                return 2                
+            
+        else:
+            return 1
+            
+        
+    
+
+
+# In[138]:
 
 
 # finding the number of lines added & removed
@@ -130,7 +170,7 @@ def tracking_files (commit_sha1):
     os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
     repo_directory_address = "."
     repository = git.Repo(repo_directory_address)
-    ommit = repository.commit(commit_sha1)
+    commit = repository.commit(commit_sha1)
     uni_diff_text = repository.git.diff(commit_sha1+ '~1', commit_sha1,
                                     ignore_blank_lines=True, 
                                     ignore_space_at_eol=True)
@@ -141,17 +181,28 @@ def tracking_files (commit_sha1):
     for patched_file in patch_set:
         file_path = patched_file.path  # file name
         print('file name :' + file_path)
-#         printing the added lines   
+        property_change = 0
+#         printing the added lines
+
         for hunk in patched_file:
             for line in hunk:
                 if line.is_added and line.value.strip() != '':
-                    lines_added.append(str(line))
+                    last_added_line = str(line).strip('+')    
+                    lines_added.append(last_added_line)
+                    if check_for_property_change(last_added_line, file_path) == 3:
+                        property_change = 1
                 if line.is_removed and line.value.strip() != '':
-                    lines_removed.append(str(line))
+                    last_removed_line = str(line).strip('-')    
+                    lines_added.append(last_removed_line)
+                    if check_for_property_change(last_removed_line, file_path) == 3:
+                        property_change = 1
+                        
+                        
         total_change['added'] = lines_added
         total_change['removed'] = lines_removed
         total_change['filename'] = file_path
         total_change['commit_id'] = commit_sha1
+        total_change['has_property_changed'] = property_change
         res = es.index(index='iac_file_change',doc_type='filelog', body=total_change)
     
     return total_change
@@ -160,17 +211,17 @@ def tracking_files (commit_sha1):
 # print(tracking_files('c2d49cbff06f348acde42ad583a1401767e52806'))
 
 
-# In[313]:
+# In[ ]:
 
 
 # Sending the changelog for each commit in the test folder to ES
 test_commit_len = len(test_script_commits)
 os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
 
-for m in range(500,615):
+for m in range(50,614):
     x = test_script_commits[m]['hash']
     file_changes = tracking_files(x)
-    res = es.index(index='iac_file_change',doc_type='filelog',id=x,body=total_change)
+#     res = es.index(index='iac_file_change',doc_type='filelog',id=x,body=total_change)
 #     print(file_changes)
 #     differs_list = []
 #     for differ in differs:
@@ -181,6 +232,32 @@ for m in range(500,615):
 #                 print(differ)
 #                 changes = g.diff(differ, name_only=True)
 #                 print (changes)
+
+
+# In[119]:
+
+
+#unit test for check_for_property_change
+s1 =  "# so we have to feed it a list of IPs\n"
+s2 = "      dest: user_variables_congress.yml\n"
+s3 = "ceph_mons: \"{{ groups[mon_group_name]\n"
+f = "get-ansible-role-requirements.yaml"
+# if f.endswith(".yml", "yaml"):
+#     print("hellp")
+# s1 = str(s1)
+check_for_property_change(s2, f)
+
+
+# In[111]:
+
+
+
+
+
+# In[112]:
+
+
+(\S+): (([A-Za-z]|[0-9]|_|"|{|\[| |\]|}|:|\/|.|\=)+$)
 
 
 # In[ ]:
