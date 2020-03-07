@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[127]:
+# In[110]:
 
 
 #taken the code to fetch commits from below resources:
@@ -14,9 +14,11 @@ import re
 import elasticsearch
 import io
 from unidiff import PatchSet
+import time
+import datetime
 
 
-# In[128]:
+# In[155]:
 
 
 #Establishing ElasticSearch Connection with Bonsai
@@ -31,7 +33,15 @@ es=Elasticsearch([{'host':'ec2-3-85-13-61.compute-1.amazonaws.com','port':9200}]
 es.ping()
 
 
-# In[129]:
+# In[156]:
+
+
+base_path = r"C:\Users\mehedi.md.hasan\PythonWorkspace\browbeat"
+test_path = r"C:\Users\mehedi.md.hasan\PythonWorkspace\browbeat\tests"
+project_name = "browbeat"
+
+
+# In[157]:
 
 
 #Parsing git commits of a repo
@@ -81,25 +91,26 @@ def get_commits(lines):
     return commit_output
 
 
-# In[130]:
+# In[158]:
 
 
 #finding the total number of commit in the project
-os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
+os.chdir(base_path)
 lines = subprocess.check_output(
     ['git', 'log'], stderr=subprocess.STDOUT
 ).decode().split("\n")
 leading_4_spaces = re.compile('^    ')
 total_commits = get_commits(lines)
+print(total_commits[0])
 print("total commits in this project: " + str(len(total_commits)))
 
 
-# In[131]:
+# In[159]:
 
 
 import git
 import os
-os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests")
+os.chdir(test_path)
 
 g = git.Git('.')
 # print(os.getcwd())
@@ -111,7 +122,7 @@ test_script_commits = get_commits(lines_tests)
 print("total commits in the test directory: " + str(len(test_script_commits)))
 
 
-# In[132]:
+# In[160]:
 
 
 # Percentage of test directory change:
@@ -119,7 +130,7 @@ print("total commits in the test directory: " + str(len(test_script_commits)))
 print("test directory change frequency is " + str(len(test_script_commits)/len(total_commits)*100) + "%")
 
 
-# In[133]:
+# In[161]:
 
 
 test_line1 = "ceph_mons: \"{{ groups[mon_group_name]\n"
@@ -133,7 +144,7 @@ def searchForMatch(test_line):
         return False
 
 
-# In[137]:
+# In[162]:
 
 
 #this function will:
@@ -159,15 +170,15 @@ def check_for_property_change(s, filename):
     
 
 
-# In[138]:
+# In[163]:
 
 
 # finding the number of lines added & removed
 # https://stackoverflow.com/questions/39423122/python-git-diff-parser
 
 
-def tracking_files (commit_sha1):
-    os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
+def tracking_files (commit_sha1, commit_date, project_name):
+    os.chdir(base_path)
     repo_directory_address = "."
     repository = git.Repo(repo_directory_address)
     commit = repository.commit(commit_sha1)
@@ -179,48 +190,52 @@ def tracking_files (commit_sha1):
     lines_removed = []
     total_change={}
     for patched_file in patch_set:
+        property_change = 0
         file_path = patched_file.path  # file name
         print('file name :' + file_path)
-        property_change = 0
-#         printing the added lines
-
-        for hunk in patched_file:
-            for line in hunk:
-                if line.is_added and line.value.strip() != '':
-                    last_added_line = str(line).strip('+')    
-                    lines_added.append(last_added_line)
-                    if check_for_property_change(last_added_line, file_path) == 3:
-                        property_change = 1
-                if line.is_removed and line.value.strip() != '':
-                    last_removed_line = str(line).strip('-')    
-                    lines_added.append(last_removed_line)
-                    if check_for_property_change(last_removed_line, file_path) == 3:
-                        property_change = 1
-                        
-                        
-        total_change['added'] = lines_added
-        total_change['removed'] = lines_removed
-        total_change['filename'] = file_path
-        total_change['commit_id'] = commit_sha1
-        total_change['has_property_changed'] = property_change
-        res = es.index(index='iac_file_change',doc_type='filelog', body=total_change)
+        if not file_path.endswith(('.png','.svg','.wmf', '.ignore', '.rst', '.md')):
+            print("Entered in hunk loop")
+            for hunk in patched_file:
+                for line in hunk:
+                    if line.is_added and line.value.strip() != '':
+                        last_added_line = str(line).strip('+')    
+                        if check_for_property_change(last_added_line, file_path) == 3:
+                            lines_added.append(last_added_line)                  
+                            property_change = 1
+                    if line.is_removed and line.value.strip() != '':
+                        last_removed_line = str(line).strip('-')    
+                        if check_for_property_change(last_removed_line, file_path) == 3:
+                            property_change = 1
+                            lines_added.append(last_removed_line)
+            total_change['added'] = lines_added
+            total_change['removed'] = lines_removed
+            total_change['filename'] = file_path
+            total_change['commit_id'] = commit_sha1
+            total_change['has_property_changed'] = property_change
+            total_change['commit_timestamp'] = time.mktime(datetime.datetime.strptime(commit_date, "%a %b %d %H:%M:%S %Y %z").timetuple())
+            total_change['project_name'] = project_name
+            res = es.index(index='iac_file_change',doc_type='filelog', body=total_change)
     
     return total_change
                
-
 # print(tracking_files('c2d49cbff06f348acde42ad583a1401767e52806'))
 
 
-# In[ ]:
+# In[164]:
 
 
 # Sending the changelog for each commit in the test folder to ES
 test_commit_len = len(test_script_commits)
-os.chdir(r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible")
+os.chdir(base_path)
 
-for m in range(50,614):
+for m in range(0,614):
     x = test_script_commits[m]['hash']
-    file_changes = tracking_files(x)
+    commit_date = test_script_commits[m]['date']
+#     project_name = "bifrost"
+    file_changes = tracking_files(x, commit_date, project_name)
+    print(m)
+    
+#     res = es.index(index='iac_file_change',doc_type='filelog', body=file_changes)
 #     res = es.index(index='iac_file_change',doc_type='filelog',id=x,body=total_change)
 #     print(file_changes)
 #     differs_list = []
@@ -234,24 +249,43 @@ for m in range(50,614):
 #                 print (changes)
 
 
-# In[119]:
+# In[ ]:
 
 
 #unit test for check_for_property_change
 s1 =  "# so we have to feed it a list of IPs\n"
-s2 = "      dest: user_variables_congress.yml\n"
+s2 = "octavia_v2: True\n"
 s3 = "ceph_mons: \"{{ groups[mon_group_name]\n"
-f = "get-ansible-role-requirements.yaml"
+f = "tests/roles/bootstrap-host/vars/main.yml"
 # if f.endswith(".yml", "yaml"):
 #     print("hellp")
 # s1 = str(s1)
 check_for_property_change(s2, f)
+commit_sha1= "c2d49cbff06f348acde42ad583a1401767e52806"
+
+# repo = git.Repo(".")
+# commits = list(repo.iter_commits("master", max_count=5))
+# print(dir(commits[0]))
 
 
-# In[111]:
+# In[33]:
+
+
+fileName = "doc/source/developer-docs/inventory.rst"
+print(fileName)
+if not fileName.endswith(('.png','.svg','.wmf', '.ignore', '.rst', '.md')):
+    print("file not static")
+  
+
+
+# In[82]:
 
 
 
+s = "Wed Sep 21 12:24:30 2016 +0200"
+time.mktime(datetime.datetime.strptime(s, "%a %b %d %H:%M:%S %Y %z").timetuple())
+# s = "Wed Sep 12 12:24:30 2011 +0200"
+# time.mktime(datetime.datetime.strptime(s, "%a %b %d %H:%M:%S %Y %z").timetuple())
 
 
 # In[112]:
