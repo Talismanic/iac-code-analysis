@@ -1,24 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[48]:
+# In[1]:
 
 
 from glob import iglob
 import os
 
 
-# In[49]:
-
-
-# base_dir = os.getcwd()
-base_dir=r"C:\Users\mehedi.md.hasan\PythonWorkspace\openstack-ansible\tests"
-print(base_dir)
-repo_name = "test_repo"
-
-
-
-# In[52]:
+# In[2]:
 
 
 def write_to_file(file_name, repo_name):
@@ -38,7 +28,7 @@ def write_to_file(file_name, repo_name):
                     
 
 
-# In[54]:
+# In[12]:
 
 
 def main():
@@ -48,12 +38,16 @@ def main():
     print("\n")
     with os.scandir(base_dir) as entries:
         for entry in entries:
-            if not os.path.isdir(os.path.join(base_dir, entry)):
-#                 print(os.path.join(base_dir, entry.name))
+#             print(entry.name)
+            if entry.name == "tox.ini":
+#                 print("found tox")
                 write_to_file(os.path.join(base_dir, entry.name), repo_name)
+            if os.path.basename(os.path.normpath(base_dir)) == "tests":
+                if not os.path.isdir(os.path.join(base_dir, entry)):
+                    write_to_file(os.path.join(base_dir, entry.name), repo_name)
 
 
-# In[56]:
+# In[40]:
 
 
 main()
