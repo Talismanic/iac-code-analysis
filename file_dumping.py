@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[63]:
+# In[1]:
 
 
 from glob import iglob
@@ -9,14 +9,14 @@ import os
 from pathlib import Path
 
 
-# In[91]:
+# In[2]:
 
 
 def write_to_file(file_name, repo_name):
     with open(file_name, 'r') as file_content:
         content = file_content.read()
         name, extension = os.path.splitext(file_name)
-        with open("dump_test_code.txt", 'a+') as file_append:
+        with open("dump_test_code_ansible.txt", 'a+') as file_append:
             file_append.write("===========Repository Name==========="+"\n")
             file_append.write(repo_name+"\n")
             file_append.write("===========File Path==========="+"\n")
@@ -46,7 +46,7 @@ def write_to_file_for_chef(file_name, repo_name):
                 
 
 
-# In[12]:
+# In[61]:
 
 
 def main():
@@ -54,18 +54,23 @@ def main():
     print("\n")
     repo_name = input("Please enter the repository name: ")
     print("\n")
-    with os.scandir(base_dir) as entries:
-        for entry in entries:
-#             print(entry.name)
-            if entry.name == "tox.ini":
-#                 print("found tox")
-                write_to_file(os.path.join(base_dir, entry.name), repo_name)
-            if os.path.basename(os.path.normpath(base_dir)) == "tests":
-                if not os.path.isdir(os.path.join(base_dir, entry)):
-                    write_to_file(os.path.join(base_dir, entry.name), repo_name)
+    for (dirpath, dirnames, filenames) in os.walk(base_dir):
+        for filename in filenames:
+            if filename == "tox.ini":
+                print
+                write_to_file(os.path.join(base_dir, dirpath, filename), repo_name)
+            
+        for dirname in dirnames:
+            if dirname == "tests":
+                test_path = os.path.join(dirpath, dirname)
+                print(test_path)
+                for (testdirpath, testdirnames, testfilenames) in os.walk(test_path):
+                    for testfile in testfilenames:
+                        print(os.path.join(test_path,testdirpath, testfile))
+                        write_to_file(os.path.join(test_path,testdirpath, testfile), repo_name)
 
 
-# In[40]:
+# In[72]:
 
 
 main()
